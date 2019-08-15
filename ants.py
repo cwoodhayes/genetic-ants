@@ -25,9 +25,12 @@ import pygame
 import random
 
 BLACK = (0,		0, 		0)
-GREY =	(100,	100,	100)
+GREY =	(50,	50,	50)
 WHITE = (255, 	255, 	255)
 RED =	(255,	0,		0)
+
+SCREEN_WIDTH = 700
+SCREEN_HEIGHT = 400
 
 class Ant(pygame.sprite.Sprite):
 	''' 
@@ -52,8 +55,8 @@ class Ant(pygame.sprite.Sprite):
 		self.rect = self.image.get_rect()
 
 		#initialize the collision lists
-		self.ant_collisions = None
-		self.wall_collisions = None
+		self.ant_list = None
+		self.wall_list = None
 
 	def update(self):
 		"""
@@ -63,7 +66,7 @@ class Ant(pygame.sprite.Sprite):
 		
 		@return     None
 		"""
-		self.agent.act(self, self.ant_collisions, self.wall_collisions)
+		self.agent.act(self)
 
 class Agent:
 	"""
@@ -73,7 +76,7 @@ class Agent:
 	def __init__(self):
 		self.genes = b'helloworld'
 
-	def act(self, ant, ant_collisions, wall_collisions):
+	def act(self, ant):
 		"""
 		@brief      Causes an ant to take an action (update its state and move
 		            on the screen) given its current situation.
@@ -86,31 +89,45 @@ class Agent:
 		@return     none
 		"""
 		dx = 1	#todo: make these actually change
-		dy = 0
-
+		dy = 1
 
 		#complete x movement action
 		ant.rect.x += dx
+		if ant.rect.left < 0 or ant.rect.right > SCREEN_WIDTH:
+			#undo if that took us off the screen
+			ant.rect.x -= dx
+		else:
+			#collisions with ants
+			ant_collisions = pygame.sprite.spritecollide(ant, ant.ant_list, False)
+			#collision with walls
+			wall_collisions = pygame.sprite.spritecollide(ant, ant.wall_list, False)
 
-		#prevent us from moving into an obstacle
-		for wall in wall_collisions:
-			if dx > 0:
-				#moving right, so align our right edge with the left edge of the wall
-				ant.rect.right = wall.rect.left
-			else:
-				#moving left, so do the opposite
-				ant.rect.left = wall.rect.right
+			#prevent us from moving into an obstacle
+			for wall in wall_collisions:
+				if dx > 0:
+					#moving right, so align our right edge with the left edge of the wall
+					ant.rect.right = wall.rect.left
+				else:
+					#moving left, so do the opposite
+					ant.rect.left = wall.rect.right
 
 		#complete y movement action
 		ant.rect.y += dy
+		if ant.rect.top < 0 or ant.rect.bottom > SCREEN_HEIGHT:
+			#undo that if it's taking us off the screen
+			ant.rect.y -= dy
+		else:
+			#collisions with ants
+			ant_collisions = pygame.sprite.spritecollide(ant, ant.ant_list, False)
+			#collision with walls
+			wall_collisions = pygame.sprite.spritecollide(ant, ant.wall_list, False)
 
-		#prevent us from moving into an obstacle
-		for wall in wall_collisions:
-			if dy > 0:
-				ant.rect.bottom = wall.rect.top
-			else:
-				ant.rect.top = wall.rect.bottom
-
+			#prevent us from moving into an obstacle
+			for wall in wall_collisions:
+				if dy > 0:
+					ant.rect.bottom = wall.rect.top
+				else:
+					ant.rect.top = wall.rect.bottom
 
 class Wall(pygame.sprite.Sprite):
 	"""
@@ -139,9 +156,7 @@ def main():
 	@return     None
 	"""
 	pygame.init()
-	screen_width = 700
-	screen_height = 400
-	screen = pygame.display.set_mode([screen_width, screen_height])
+	screen = pygame.display.set_mode([SCREEN_WIDTH, SCREEN_HEIGHT])
 
 	#list of all ant sprites in the game, managed by this "group" object
 	ant_list = pygame.sprite.Group()
@@ -155,19 +170,21 @@ def main():
 		#create an ant
 		ant = Ant(Agent(), GREY, 15, 15)
 		#select a random location for the ant
-		ant.rect.x = random.randrange(screen_width)
-		ant.rect.y = random.randrange(screen_height)
-		#add the ant to the ants & objects list
+		ant.rect.x = random.randrange(SCREEN_WIDTH)
+		ant.rect.y = random.randrange(SCREEN_HEIGHT)
+		#add the ant to the ants & objects list, and store references to these lists in the ant
+		ant.ant_list = ant_list
+		ant.wall_list = wall_list
 		ant_list.add(ant)
 		all_sprites_list.add(ant)
 
 	#create some obstacles
 	for i in range(15):
 		#create a randomly sized obstacle
-		wall = Wall(BLACK, random.betavariate(2,20)*screen_width, random.betavariate(2,20)*screen_height)
+		wall = Wall(BLACK, random.betavariate(2,20)*SCREEN_WIDTH, random.betavariate(2,20)*SCREEN_HEIGHT)
 		#select a random location for the ant
-		wall.rect.x = random.randrange(screen_width)
-		wall.rect.y = random.randrange(screen_height)
+		wall.rect.x = random.randrange(SCREEN_WIDTH)
+		wall.rect.y = random.randrange(SCREEN_HEIGHT)
 		#add the wall to the wall and objects lists
 		wall_list.add(wall)
 		all_sprites_list.add(wall)
@@ -184,15 +201,6 @@ def main():
 
 		#clear the screen
 		screen.fill(WHITE)
-
-		#find all ants that collided
-		
-		#detect all collisions. This is dumb--can improve this runtime a lot if I need to (TODO)
-		for ant in ant_list:
-			#collisions with ants
-			ant.ant_collisions = pygame.sprite.spritecollide(ant, ant_list, False)
-			#collision with walls
-			ant.wall_collisions = pygame.sprite.spritecollide(ant, wall_list, False)
 
 		#ants take their move actions
 		ant_list.update()
