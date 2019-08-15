@@ -23,9 +23,10 @@ Ant inputs:
 
 import pygame
 import random
+import numpy as np
 
 BLACK = (0,		0, 		0)
-GREY =	(50,	50,	50)
+GREY =	(150,	150,	150)
 WHITE = (255, 	255, 	255)
 RED =	(255,	0,		0)
 
@@ -74,7 +75,7 @@ class Agent:
 				The agents have 'genes' which determine what kind of actions they take.
 	"""
 	def __init__(self):
-		self.genes = b'helloworld'
+		self.genes = np.random.rand(4,4) - .5
 
 	def act(self, ant):
 		"""
@@ -88,8 +89,20 @@ class Agent:
 		
 		@return     none
 		"""
-		dx = 1	#todo: make these actually change
-		dy = 1
+		'''
+		movement phase inputs:
+		[gridx, gridy]
+		outputs: []
+
+		action phase inputs:
+		[gridx, gridy, collideant, collidewall]
+		'''
+		movement_inputs = np.array([[ant.rect.x/SCREEN_WIDTH], [ant.rect.y/SCREEN_HEIGHT]])
+		#generate movement decisions
+		movement_outputs = np.matmul(self.genes[0:2,0:2], movement_inputs)
+
+		dx = movement_outputs[0]
+		dy = movement_outputs[1]
 
 		#complete x movement action
 		ant.rect.x += dx
