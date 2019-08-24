@@ -38,16 +38,18 @@ MATING_PERIOD = 200	#period in turns
 MATING_DELAY = 200 #delay until ant matures enough to mate with other ants
 
 class Ant(pygame.sprite.Sprite):
-	''' 
-	Class for an ant. it learns stuff
-	'''
+	##
+	## @brief      Constructs the ant
+	##
+	## @param      self    The object
+	## @param      agent   The agent controlling the ant
+	## @param      game    The game object describing various game state items
+	## @param      init_x  The initial x position of the ant
+	## @param      init_y  The initial y position of the ant
+	## @param      width   The width of the ant
+	## @param      height  The height of the ant on screen
+	##
 	def __init__(self, agent, game, init_x, init_y, width=15, height=15):
-		"""
-		Agent -- the agent which makes decisions as to the ant's movement
-		color -- ant color
-		width -- ant width
-		height - ant height
-		"""
 
 		super().__init__()
 		self.agent = agent
@@ -82,15 +84,27 @@ class Ant(pygame.sprite.Sprite):
 		#ant's can't mate til they're a bit older
 		self.prev_mating_turn = MATING_DELAY
 
+	##
+	## @brief      Called once per tick to perform an action and update the
+	##             ant's location on screen
+	##
+	## @param      self  The object
+	##
+	## @return     none
+	##
 	def update(self):
-		"""
-		@brief      Called once a tick to update the ant's position on the screen.
-		
-		@param      self  The object
-		
-		@return     None
-		"""
 		self.agent.act(self)
+
+	##
+	## @brief      Interact with another ant with whom you've collided
+	##
+	## @param      self       The object
+	## @param      other_ant  The other ant
+	##
+	## @return     none
+	##
+	def interact(self, other_ant):
+		self.attempt_mate(other_ant)
 
 	def attempt_mate(self, other_ant):
 		if self.game.turn_count - self.prev_mating_turn > MATING_PERIOD and \
@@ -113,9 +127,18 @@ class Ant(pygame.sprite.Sprite):
 
 class Agent:
 	"""
-	@brief      Class for an agent. Each ant has an agent that tells it what to do.
-				The agents have 'genes' which determine what kind of actions they take.
+	@brief      Class for an agent. Each ant has an agent that tells it what to
+	            do. The agents have 'genes' which determine what kind of actions
+	            they take.
 	"""
+	movement_weights = np.array([1,1,5,5])	#see act()
+
+	##
+	## @brief      Constructs the object.
+	##
+	## @param      self   The object
+	## @param      genes  The genes of the agent
+	##
 	def __init__(self, genes=None):
 		if genes is None:
 			self.genes = (np.random.rand(4,4) - .5)*2
@@ -123,6 +146,9 @@ class Agent:
 			self.genes = genes
 		self.prev_dy = 0
 		self.prev_dx = 0
+		self.movement_inputs = np.empty((1,4))
+		self.weighted_movement_inputs = np.empty((1,4))
+		self.movement_outputs = np.empty((1,2))
 
 	def act(self, ant):
 		"""
@@ -148,15 +174,16 @@ class Agent:
 		init_x = ant.rect.x
 		init_y = ant.rect.y
 		#use current position and velocity, plus genetic preference, to determine movement.
-		movement_inputs = np.array([[ant.rect.x/SCREEN_WIDTH], [ant.rect.y/SCREEN_HEIGHT], [self.prev_dx], [self.prev_dy]])
-		#generate movement decisions
-		movement_outputs = (np.matmul(self.genes[0:2,0:4], movement_inputs) / 4) + .5 #/4 + .5 so that this is between 0 and 1
+		self.movement_inputs = np.array([ant.rect.x/SCREEN_WIDTH, ant.rect.y/SCREEN_HEIGHT, self.prev_dx, self.prev_dy])
+		np.multiply(self.movement_inputs, Agent.movement_weights, out=self.weighted_movement_inputs)
+		#generate movement outputs between 0 and 1
+		self.movement_outputs = np.matmul(self.movement_inputs, self.genes[0:4,0:2]) / Agent.movement_weights.sum() + .5
 
 		#pick a number between 0 and 1. If it is above the normalized movement_output, then we set dx to 1.
 		#if it is below movement_output, we set to 0. This allows genes to set a preference on movement,
 		#but not to entirely determine it, or else ants get stuck.
-		dx = 1 if random.random() > movement_outputs[0] else -1
-		dy = 1 if random.random() > movement_outputs[1] else -1
+		dx = 1 if random.random() > self.movement_outputs[0] else -1
+		dy = 1 if random.random() > self.movement_outputs[1] else -1
 
 		#list of ants that we collide with this turn
 		ant_collisions = []
@@ -203,7 +230,7 @@ class Agent:
 		for other_ant in ant_collisions:
 			#spritecollide is dumb and collides you with yourself
 			if ant is not other_ant:
-				ant.attempt_mate(other_ant)
+				ant.interact(other_ant)
 
 		#save this iteration's movement results
 		self.prev_dx = ant.rect.x - init_x
