@@ -4,8 +4,10 @@
 This script creates a number of ants, which gradually evolve to survive and thrive in their environment.
 The ants move, eat, mate, produce offspring, and die in an environment containing food and obstacles.
 
+Ant movement:
+any combo of dx=1, -1 and dy=1, -1
+
 Ant actions:
-1,2,3,4	- move up, left, down, or right
 5		- propose mating with a colliding ant. If that ant also proposes mating, then they produce offspring
   		  with a random combination of their genes
 6		- eat a colliding food
@@ -59,6 +61,13 @@ class Ant(pygame.sprite.Sprite):
 		self.ant_list = None
 		self.wall_list = None
 
+		#initialize previous movement
+		self.prev_dx = 0
+		self.prev_dy = 0
+
+		#prev action
+		self.prev_action = 0
+
 	def update(self):
 		"""
 		@brief      Called once a tick to update the ant's position on the screen.
@@ -75,7 +84,9 @@ class Agent:
 				The agents have 'genes' which determine what kind of actions they take.
 	"""
 	def __init__(self):
-		self.genes = np.random.rand(4,4) - .5
+		self.genes = (np.random.rand(4,4) - .5)*2
+		self.prev_dy = 0
+		self.prev_dx = 0
 
 	def act(self, ant):
 		"""
@@ -97,12 +108,19 @@ class Agent:
 		action phase inputs:
 		[gridx, gridy, collideant, collidewall]
 		'''
-		movement_inputs = np.array([[ant.rect.x/SCREEN_WIDTH], [ant.rect.y/SCREEN_HEIGHT]])
-		#generate movement decisions
-		movement_outputs = np.matmul(self.genes[0:2,0:2], movement_inputs)
 
-		dx = movement_outputs[0]
-		dy = movement_outputs[1]
+		init_x = ant.rect.x
+		init_y = ant.rect.y
+		#use current position and velocity, plus genetic preference, to determine movement.
+		movement_inputs = np.array([[ant.rect.x/SCREEN_WIDTH], [ant.rect.y/SCREEN_HEIGHT], [self.prev_dx], [self.prev_dy]])
+		#generate movement decisions
+		movement_outputs = (np.matmul(self.genes[0:2,0:4], movement_inputs) / 4) + .5 #/4 + .5 so that this is between 0 and 1
+
+		#pick a number between 0 and 1. If it is above the normalized movement_output, then we set dx to 1.
+		#if it is below movement_output, we set to 0. This allows genes to set a preference on movement,
+		#but not to entirely determine it, or else ants get stuck.
+		dx = 1 if random.random() > movement_outputs[0] else -1
+		dy = 1 if random.random() > movement_outputs[1] else -1
 
 		#complete x movement action
 		ant.rect.x += dx
@@ -141,6 +159,12 @@ class Agent:
 					ant.rect.bottom = wall.rect.top
 				else:
 					ant.rect.top = wall.rect.bottom
+
+		#save is iteration's movement results
+		self.prev_dx = ant.rect.x - init_x
+		self.prev_dy = ant.rect.y - init_y
+
+
 
 class Wall(pygame.sprite.Sprite):
 	"""
